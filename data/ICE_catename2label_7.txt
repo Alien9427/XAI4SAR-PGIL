@@ -1,0 +1,8 @@
+catename,label
+Sea3_Young_Ice,0
+Isbergs_Glacier,1
+Sea2_Frist_year_Ice,2
+Water_bodies,3
+Icebergs,4
+Floating_ice,5
+Sea1_Old_Ice,6
