@@ -1,4 +1,5 @@
 from torch import nn
+import torch.nn.functional as F
 
 
 """ ResNet """
@@ -100,17 +101,93 @@ class ResNet_Comp(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
 
-
-        x = self.comp_fc(x)
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        x = self.comp_layer(x)
+        # x = self.comp_fc(x)  # comment when training PIN
+        # x = self.avgpool(x)  # comment when training PIN    # uncomment if PGN+SVM test
+        # x = x.view(x.size(0), -1)  # comment when training PIN   # uncomment if PGN+SVM test
+        # x = self.comp_layer(x)  # comment when training PIN
 
 
         return x
 
 
+class ResNet_Comp_CNN2(nn.Module):
 
-def ResNet18_TSX_Comp(num_topics):
+    def __init__(self, block, layers, num_class):
+        self.inplanes = 64
+        super(ResNet_Comp_CNN2, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64, momentum=0.5)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.avgpool = nn.AdaptiveAvgPool2d((1,1))
+
+        self.cls_layer = nn.Linear(512 * block.expansion, num_class)
+
+        # transform layer
+        self.latlayer2 = nn.Conv2d(256, 128, 1, 1, 0)
+        self.latlayer4 = nn.Conv2d(256, 512, 1, 1, 0)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion, momentum=0.5),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    # from top to bottom
+    def _upsample_add(self, x, y):
+        _, _, H, W = y.shape
+        return F.interpolate(x, size=(H, W), mode='bilinear', align_corners=True) + y
+
+    def forward(self, x, comp_feat):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self._upsample_add(self.latlayer2(comp_feat), x)  # inj-2
+        x = self.layer3(x)
+        x = self._upsample_add(comp_feat, x)  # inj-3
+        x = self.layer4(x)
+        x = self._upsample_add(self.latlayer4(comp_feat), x)  # inj-4
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+
+        x = self.cls_layer(x)
+
+        return x
+
+
+def ResNet18_PGN(num_topics):
     model = ResNet_Comp(BasicBlock, [2,2,2,2], num_topic=num_topics)
+    return model
+
+def ResNet18_PGIL(num_class):
+    model = ResNet_Comp_CNN2(BasicBlock, [2, 2, 2, 2], num_class=num_class)
     return model
