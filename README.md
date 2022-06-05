@@ -1,6 +1,20 @@
 # XAI4SAR-PGIL
 
-The physics guided and injected learning NN for SAR patch-wise image classification
+A physics guided and injected learning (PGIL) neural network for SAR patch-wise image classification
+
+@citation-bibtex
+
+```
+@article{huang2022,
+title = {Physically Explainable {{CNN}} for {{SAR}} Image Classification},
+author = {Huang, Zhongling and Yao, Xiwen and Liu, Ying and Dumitru, Corneliu Octavian and Datcu, Mihai and Han, Junwei},
+year = {2022},
+journal = {ISPRS Journal of Photogrammetry and Remote Sensing},
+volume = {190},
+pages = {25--37},
+doi = {10.1016/j.isprsjprs.2022.05.008},
+}
+```
 
 
 
